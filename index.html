@@ -123,8 +123,12 @@
     
         initSqlJs({ locateFile: file => `https://cdnjs.cloudflare.com/ajax/libs/sql.js/1.6.2/${file}` })
           .then(SQL => {
-            db = new SQL.Database();
-            initializeDatabase();
+            fetch('https://sqliteonline.com/#sharedb=s%3Adanyka')
+              .then(response => response.arrayBuffer())
+              .then(buffer => {
+                db = new SQL.Database(new Uint8Array(buffer));
+                initializeDatabase();
+              });
           });
     
         function createTables() {
