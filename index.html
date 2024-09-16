@@ -253,7 +253,7 @@ button:hover {
     <ul id="lowStockItems"></ul>
 </div>
 <div class="footer">
-    &copy; 2023 Kasereka vuyingo remias. Tous droits réservés.
+    &copy; 2024 Kasereka vuyingo remias. Tous droits réservés.
 </div>
 
 <script>
@@ -299,7 +299,7 @@ function createTables() {
 
 function initializeAdminUser() {
   db.run('INSERT OR IGNORE INTO users (username, password, role) VALUES (?, ?, ?)', 
-    ['admin', 'admin', 'administrateur']);
+    ['remias', 'remias', 'administrateur']);
 }
 
 function initializeDatabase() {
