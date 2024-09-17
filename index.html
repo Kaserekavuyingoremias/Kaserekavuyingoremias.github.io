@@ -278,6 +278,9 @@ function createTables() {
     CREATE TABLE IF NOT EXISTS products (
       id INTEGER PRIMARY KEY AUTOINCREMENT,
       name TEXT,
+      abbreviation TEXT,
+      category TEXT,
+      code TEXT,
       quantity INTEGER,
       price REAL,
       image TEXT
@@ -347,8 +350,8 @@ function getProducts() {
 }
 
 function addProduct(product) {
-  db.run('INSERT INTO products (name, quantity, price, image) VALUES (?, ?, ?, ?)', 
-    [product.name, product.quantity, product.price, product.image]);
+  db.run('INSERT INTO products (code, name, abbreviation, category) VALUES (?, ?, ?, ?)', 
+    [product.code, product.name, product.abbreviation, product.category]);
 }
 
 function addStockMovement(movement) {
@@ -538,15 +541,15 @@ document.addEventListener('DOMContentLoaded', function() {
                 <tr>
                     <th>Image</th>
                     <th>Nom</th>
-                    <th>Quantité</th>
-                    <th>Prix</th>
+                    <th>Abbréviation</th>
+                    <th>Code du produit</th>
                 </tr>
                 ${products.map(p => `
-                    <tr>
+                    <tr style="color: ${p.quantity < 10 ? 'yellow' : p.expirationDate < new Date().toISOString().split('T')[0] ? 'red' : 'black'};">
                         <td><img src="${p.image}" alt="${p.name}" class="product-image"></td>
                         <td>${p.name}</td>
-                        <td>${p.quantity}</td>
-                        <td>${p.price.toFixed(2)} €</td>
+                        <td>${p.abbreviation}</td>
+                        <td>${p.code}</td>
                     </tr>
                 `).join('')}
             </table>
@@ -561,14 +564,13 @@ document.addEventListener('DOMContentLoaded', function() {
             <h3>Entrée de stock</h3>
             <form id="stockMovementForm">
                 <input type="date" id="movementDate" value="${currentDate}" required>
-                <select id="productId" required>
-                    ${getProducts().map(p => `<option value="${p.id}">${p.name}</option>`).join('')}
-                </select>
+                <input type="date" id="manufactureDate" placeholder="Date de fabrication" required>
+                <input type="date" id="expirationDate" placeholder="Date d'expiration" required>
                 <input type="number" id="quantity" placeholder="Quantité" required>
+                <input type="text" id="category" placeholder="Catégorie" required>
+                <input type="text" id="productCode" placeholder="Code du produit" required>
                 <input type="number" id="unitPrice" placeholder="Prix unitaire" step="0.01" required>
-                <input type="text" id="source" placeholder="Fournisseur" required>
-                <input type="text" id="reference" placeholder="Référence" readonly>
-                <button type="submit">Enregistrer l'entrée</button>
+                <button type="submit">Valider</button>
             </form>
         `;
         document.getElementById('stockMovementForm').addEventListener('submit', handleStockMovementSubmit);
@@ -579,30 +581,33 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('stockMovementFormContainer').innerHTML = `
             <h3>Sortie de stock</h3>
             <form id="stockMovementForm">
+                <input type="text" id="productCode" placeholder="Code du produit" required>
+                <div id="additionalProducts"></div>
+                <button type="button" onclick="addProductFields()">Ajouter produit</button>
                 <input type="date" id="movementDate" value="${currentDate}" required>
-                <select id="productId" required>
-                    ${getProducts().map(p => `<option value="${p.id}">${p.name}</option>`).join('')}
-                </select>
-                <input type="number" id="quantity" placeholder="Quantité" required>
-                <input type="number" id="unitPrice" placeholder="Prix unitaire" step="0.01" required>
-                <input type="text" id="source" placeholder="Client" required>
-                <input type="text" id="reference" placeholder="Référence" readonly>
-                <button type="submit">Enregistrer la sortie</button>
+                <button type="submit">Valider</button>
             </form>
         `;
         document.getElementById('stockMovementForm').addEventListener('submit', handleStockMovementSubmit);
     }
 
+    function addProductFields() {
+        const additionalProducts = document.getElementById('additionalProducts');
+        additionalProducts.innerHTML += `
+            <input type="text" placeholder="Code du produit" required>
+            <input type="number" placeholder="Quantité" required>
+            <input type="number" placeholder="Prix unitaire" step="0.01" required>
+        `;
+    }
+
     window.showAddForm = function() {
-        const currentDate = new Date().toISOString().split('T')[0];
         document.getElementById('stockMovementFormContainer').innerHTML = `
             <h3>Enregistrer nouveau produit</h3>
             <form id="stockMovementForm">
-                <input type="date" id="movementDate" value="${currentDate}" required>
-                <input type="text" id="newProductName" placeholder="Nom du nouveau produit" required>
-                <input type="number" id="quantity" placeholder="Quantité" required>
-                <input type="number" id="price" placeholder="Prix" step="0.01" required>
-                <input type="file" id="productImage" accept="image/*">
+                <input type="text" id="productCode" placeholder="Code du produit" required>
+                <input type="text" id="newProductName" placeholder="Nom du produit" required>
+                <input type="text" id="abbreviation" placeholder="Abbréviation" required>
+                <input type="text" id="category" placeholder="Catégorie" required>
                 <button type="submit">Ajouter le nouveau produit</button>
             </form>
         `;
@@ -782,43 +787,16 @@ document.addEventListener('DOMContentLoaded', function() {
     function handleNewProductSubmit(e) {
         e.preventDefault();
         const form = e.target;
-        const imageFile = form.querySelector('#productImage').files[0];
-        
-        const reader = new FileReader();
-        reader.onload = function(event) {
-            const newProduct = {
-                name: form.querySelector('#newProductName').value,
-                quantity: parseInt(form.querySelector('#quantity').value),
-                price: parseFloat(form.querySelector('#price').value),
-                image: event.target.result
-            };
-            
-            addProduct(newProduct);
-            
-            const products = getProducts();
-            const newProductId = products[products.length - 1].id;
-            
-            const movement = {
-                date: form.querySelector('#movementDate').value,
-                type: 'new',
-                productId: newProductId,
-                quantity: newProduct.quantity,
-                source: 'Nouveau produit',
-                reference: generateReference('new', newProduct.name),
-                price: newProduct.price
-            };
-            
-            addStockMovement(movement);
-            
-            alert('Nouveau produit ajouté avec succès !');
-            showStockPage();
+        const newProduct = {
+            code: form.querySelector('#productCode').value,
+            name: form.querySelector('#newProductName').value,
+            abbreviation: form.querySelector('#abbreviation').value,
+            category: form.querySelector('#category').value
         };
         
-        if (imageFile) {
-            reader.readAsDataURL(imageFile);
-        } else {
-            reader.onload({ target: { result: 'path/to/default/image.jpg' } });
-        }
+        addProduct(newProduct);
+        alert('Nouveau produit ajouté avec succès !');
+        showStockPage();
     }
 
     function generateReference(type, productName) {
